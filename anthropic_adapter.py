@@ -176,6 +176,27 @@ def _convert_anthropic_message(msg: dict) -> list[dict]:
     return [{"role": role, "content": text}] if text else []
 
 
+def _anthropic_image_to_chat(block: dict) -> dict | None:
+    """把 Anthropic image block 转成 OpenAI Chat image_url block。"""
+    source = block.get("source") or {}
+    source_type = source.get("type")
+    if source_type == "base64":
+        media_type = source.get("media_type") or "image/png"
+        data = source.get("data") or ""
+        if not data:
+            return None
+        return {
+            "type": "image_url",
+            "image_url": {"url": f"data:{media_type};base64,{data}"},
+        }
+    if source_type == "url":
+        url = source.get("url") or ""
+        if not url:
+            return None
+        return {"type": "image_url", "image_url": {"url": url}}
+    return None
+
+
 def _extract_blocks_text(blocks: list) -> str:
     """从 content blocks 中提取所有 text 块合并为字符串。"""
     parts = []
