@@ -446,6 +446,11 @@ CONFIG: dict = {
     "no_compact": False,
 }  # cred: CredentialManager | None
 
+# OAuth 登录必须保持 auth/state 与 auth/token 使用同一个 cookie 会话。
+# state 只活几分钟，登录成功后会清理对应客户端。
+_OAUTH_LOGIN_STATES: dict[str, dict] = {}
+_OAUTH_LOGIN_LOCK = threading.Lock()
+
 
 # ---------------------------------------------------------------------------
 # 日志（写文件）
