@@ -1073,58 +1073,10 @@ async def _stream_upstream(
                         yield _err_event(err, r.status_code)
                         return
                     async for chunk in r.aiter_bytes():
-                        if not chunk:
-                            continue
-                        raw_parts.append(chunk)
-                        _feed(chunk)
-
-                        if not collapse_reasoning:
+                        if chunk:
+                            raw_parts.append(chunk)
+                            _feed(chunk)
                             yield chunk
-                            continue
-
-                        # DeepSeek：逐行解析 SSE。reasoning_content 先缓存；一旦正文开始，
-                        # 先一次性吐出完整 reasoning，再继续原样转发正文 chunk。
-                        text = chunk.decode("utf-8", "replace")
-                        out_parts: list[bytes] = []
-                        for raw_line in text.splitlines(keepends=True):
-                            line = raw_line.strip()
-                            if not line.startswith("data:"):
-                                out_parts.append(raw_line.encode("utf-8"))
-                                continue
-                            payload = line[5:].strip()
-                            if payload == "[DONE]":
-                                evt = _collapsed_reasoning_event()
-                                if evt:
-                                    out_parts.append(evt)
-                                out_parts.append(raw_line.encode("utf-8"))
-                                continue
-                            try:
-                                obj = json.loads(payload)
-                            except Exception:
-                                out_parts.append(raw_line.encode("utf-8"))
-                                continue
-                            choices = obj.get("choices") or []
-                            if not choices:
-                                out_parts.append(raw_line.encode("utf-8"))
-                                continue
-                            delta = choices[0].get("delta") or {}
-                            rc = delta.get("reasoning_content")
-                            content = delta.get("content")
-                            if isinstance(rc, str) and rc:
-                                reasoning_parts.append(rc)
-                                if reasoning_template is None:
-                                    reasoning_template = obj
-                                # 纯 reasoning token 不直接转发，避免一个 token 一个 Thinks。
-                                if not content:
-                                    continue
-                            if content and not reasoning_flushed:
-                                evt = _collapsed_reasoning_event()
-                                if evt:
-                                    out_parts.append(evt)
-                            out_parts.append(raw_line.encode("utf-8"))
-                        for part in out_parts:
-                            if part:
-                                yield part
                     break
     except httpx.HTTPError as e:
         _log(f"{prefix}✗ 网络错误 | {model_name} | {e}")
