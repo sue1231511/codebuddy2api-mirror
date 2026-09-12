@@ -114,13 +114,17 @@ def _convert_anthropic_message(msg: dict) -> list[dict]:
     # 检查是否包含 tool_result（role=user 时）
     if role == "user":
         result: list[dict] = []
-        text_parts: list[str] = []
+        user_blocks: list[dict] = []
         for block in blocks:
             if not isinstance(block, dict):
                 continue
             bt = block.get("type", "")
             if bt == "text":
-                text_parts.append(block.get("text", ""))
+                user_blocks.append({"type": "text", "text": block.get("text", "")})
+            elif bt == "image":
+                image_block = _anthropic_image_to_chat(block)
+                if image_block is not None:
+                    user_blocks.append(image_block)
             elif bt == "tool_result":
                 # tool_result → 独立的 tool 消息
                 tc_id = block.get("tool_use_id", "")
@@ -130,8 +134,12 @@ def _convert_anthropic_message(msg: dict) -> list[dict]:
                         b.get("text", "") for b in output if isinstance(b, dict) and b.get("type") == "text"
                     )
                 result.append({"role": "tool", "tool_call_id": tc_id, "content": output})
-        if text_parts:
-            result.insert(0, {"role": "user", "content": "".join(text_parts)})
+        if user_blocks:
+            if all(b.get("type") == "text" for b in user_blocks):
+                user_content = "".join(b.get("text", "") for b in user_blocks)
+            else:
+                user_content = user_blocks
+            result.insert(0, {"role": "user", "content": user_content})
         return result
 
     # assistant 角色
