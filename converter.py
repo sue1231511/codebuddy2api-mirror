@@ -765,6 +765,7 @@ async def _stream_upstream(
     model_name: str = "?",
     t0: float = 0.0,
     rid: str = "",
+    cred: CredentialManager | None = None,
 ):
     """把后端 SSE 原样转发给客户端（后端已是标准 OpenAI SSE，含 tool_calls）。
 
