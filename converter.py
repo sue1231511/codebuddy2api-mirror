@@ -403,14 +403,11 @@ def get_available_models() -> list[str]:
     workbuddy_models = _load_models_from_workbuddy()
 
     if workbuddy_models:
-        # 合并动态列表与已验证可用的默认模型，避免客户端模型配置未及时包含新模型。
-        merged = list(workbuddy_models)
-        for model_id in DEFAULT_MODELS:
-            if model_id not in merged:
-                merged.append(model_id)
-        return merged
-    # 降级到硬编码列表
-    return DEFAULT_MODELS
+        # 成功从 WorkBuddy 加载，使用动态列表
+        return workbuddy_models
+    else:
+        # 降级到硬编码列表
+        return DEFAULT_MODELS
 
 
 # 后端请求体里出现过的额外字段（透传时若客户端给了就保留）
