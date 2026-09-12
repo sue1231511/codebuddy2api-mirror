@@ -737,10 +737,11 @@ async def chat_completions(
     client_wants_stream = bool(payload.get("stream"))
     body = {k: payload[k] for k in PASSTHROUGH_BODY_KEYS if k in payload}
     body.setdefault("model", "auto")
-    # WorkBuddy 客户端里的 DeepSeek V4.1 Flash 默认会开启深度思考；
-    # 直接走 API 时若不显式打开，上游仍会返回 reasoning_content 字段，但内容为空。
-    if body.get("model") == "deepseek-v4.1-flash" and "enable_thinking" not in body:
-        body["enable_thinking"] = True
+    # DeepSeek V4.1 Flash 的思考开关使用 thinking 对象；仅 enable_thinking
+    # 在部分兼容层会被忽略。默认按 WorkBuddy 客户端行为开启，并给最高推理档位。
+    if body.get("model") == "deepseek-v4.1-flash":
+        body.setdefault("thinking", {"type": "enabled"})
+        body.setdefault("reasoning_effort", "max")
     # 后端只支持流式：始终以 stream=True 调后端，非流式由转换器聚合
     body["stream"] = True
     if "stream_options" not in body:
