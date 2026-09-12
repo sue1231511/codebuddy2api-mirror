@@ -386,9 +386,11 @@ workbuddy2api/
 
 ---
 
-## 致谢
+## 项目来源与致谢
 
-本项目基于 [HanHan666666/codebuddy2openai](https://github.com/HanHan666666/codebuddy2openai) 的思路演进而来，感谢原作者的开源贡献。
+本仓库是在上游项目 [HanHan666666/codebuddy2openai](https://github.com/HanHan666666/codebuddy2openai) 基础上的二次修改版本，并保留了上游项目的提交历史、原作者信息及后续贡献记录。
+
+本仓库维护者仅对自己后续新增、调整和适配的部分负责；上游项目原有代码、历史提交及对应贡献归原作者和各贡献者所有。感谢原作者及后续贡献者的开源工作。
 
 ## 免责声明
 
