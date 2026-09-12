@@ -430,6 +430,7 @@ PASSTHROUGH_BODY_KEYS = {
     "seed",
     "user",
     "reasoning_effort",
+    "enable_thinking",
     "verbosity",
     "reasoning_summary",
 }
