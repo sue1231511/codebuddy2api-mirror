@@ -177,21 +177,36 @@ def _convert_input_items(items: list) -> list[dict]:
     return messages
 
 
-def _extract_content(content) -> str:
-    """提取 content（可能是 str / list[{type,text}]）。"""
+def _extract_content(content):
+    """转换 Responses content 为 Chat content，并保留多模态图片块。"""
     if isinstance(content, str):
         return content
     if isinstance(content, list):
-        parts = []
+        blocks = []
         for p in content:
-            if isinstance(p, dict):
-                if p.get("type") in ("input_text", "text"):
-                    parts.append(p.get("text", ""))
-                elif p.get("type") == "output_text":
-                    parts.append(p.get("text", ""))
-            elif isinstance(p, str):
-                parts.append(p)
-        return "".join(parts) or str(content)
+            if isinstance(p, str):
+                blocks.append({"type": "text", "text": p})
+                continue
+            if not isinstance(p, dict):
+                continue
+            pt = p.get("type")
+            if pt in ("input_text", "text", "output_text"):
+                blocks.append({"type": "text", "text": p.get("text", "")})
+            elif pt in ("input_image", "image_url"):
+                image_url = p.get("image_url")
+                if isinstance(image_url, str) and image_url:
+                    image_obj = {"url": image_url}
+                    if p.get("detail"):
+                        image_obj["detail"] = p["detail"]
+                    blocks.append({"type": "image_url", "image_url": image_obj})
+                elif isinstance(image_url, dict) and image_url.get("url"):
+                    blocks.append({"type": "image_url", "image_url": dict(image_url)})
+        if not blocks:
+            return str(content)
+        # 纯文本仍保持原来的字符串形式；包含图片时使用标准 Chat content blocks。
+        if all(b.get("type") == "text" for b in blocks):
+            return "".join(b.get("text", "") for b in blocks)
+        return blocks
     return str(content)
 
 
