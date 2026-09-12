@@ -117,6 +117,9 @@ class CredentialManager:
         self._lock = threading.Lock()
         self._cached: dict | None = None
         self._mtime: float = 0.0
+        # 与 WorkBuddy 客户端一致：会话级 32 位 hex ID，不带连字符。
+        self._session_id = uuid.uuid4().hex
+        self._trace_id = uuid.uuid4().hex[:32]
 
     def _read_raw(self) -> dict:
         with open(self.path, encoding="utf-8") as f:
