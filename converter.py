@@ -68,6 +68,7 @@ from responses_projection import project_responses_chat_body
 BACKEND = "https://copilot.tencent.com"
 DEFAULT_DOMAIN = "www.codebuddy.cn"
 USER_AGENT = "codebuddy2openai/2.0"
+OAUTH_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
 # ---------------------------------------------------------------------------
 # 平台相关：定位 auth 目录
