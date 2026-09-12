@@ -819,20 +819,35 @@ async def _stream_upstream(
 
     try:
         async with httpx.AsyncClient(timeout=None) as c:
-            async with c.stream("POST", url, headers=headers, json=body) as r:
-                if r.status_code != 200:
-                    err = await r.aread()
-                    _log(
-                        f"{prefix}✗ HTTP {r.status_code} | {model_name} | {_truncate(err.decode('utf-8', 'replace'), 200)}"
-                    )
-                    _log(f"{prefix}── ERROR BODY ──\n{err.decode('utf-8', 'replace')}")
-                    yield _err_event(err, r.status_code)
-                    return
-                async for chunk in r.aiter_bytes():
-                    if chunk:
-                        raw_parts.append(chunk)
-                        _feed(chunk)
-                        yield chunk
+            for attempt in range(2):
+                async with c.stream("POST", url, headers=headers, json=body) as r:
+                    if r.status_code == 401 and attempt == 0 and cred is not None:
+                        err = await r.aread()
+                        _log(
+                            f"{prefix}↻ HTTP 401 | {model_name} | forcing token refresh and retry"
+                        )
+                        try:
+                            cred.force_refresh()
+                            headers = cred.get_headers(model_name)
+                            continue
+                        except Exception as refresh_err:
+                            _log(f"{prefix}✗ token refresh failed | {refresh_err}")
+                            yield _err_event(err, 401)
+                            return
+                    if r.status_code != 200:
+                        err = await r.aread()
+                        _log(
+                            f"{prefix}✗ HTTP {r.status_code} | {model_name} | {_truncate(err.decode('utf-8', 'replace'), 200)}"
+                        )
+                        _log(f"{prefix}── ERROR BODY ──\n{err.decode('utf-8', 'replace')}")
+                        yield _err_event(err, r.status_code)
+                        return
+                    async for chunk in r.aiter_bytes():
+                        if chunk:
+                            raw_parts.append(chunk)
+                            _feed(chunk)
+                            yield chunk
+                    break
     except httpx.HTTPError as e:
         _log(f"{prefix}✗ 网络错误 | {model_name} | {e}")
         yield _err_event(str(e).encode(), 502)
