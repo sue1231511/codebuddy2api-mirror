@@ -593,13 +593,13 @@ async def chat_completions(
         f"[{rid}] ── REQUEST BODY (发往后端) ──\n{json.dumps(body, ensure_ascii=False, indent=2)}"
     )
 
-    headers = cred.get_headers()
+    headers = cred.get_headers(model_name)
     url = f"{BACKEND}/v2/chat/completions"
     t0 = time.time()
 
     if client_wants_stream:
         return StreamingResponse(
-            _stream_upstream(url, headers, body, model_name, t0, rid),
+            _stream_upstream(url, headers, body, model_name, t0, rid, cred),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
