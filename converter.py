@@ -1009,6 +1009,31 @@ async def _stream_upstream(
     raw_parts: list[bytes] = []  # 累积完整原始 SSE
     prefix = f"[{rid}] " if rid else ""
 
+    # 部分 OpenAI 兼容客户端会把每个 reasoning_content delta 当成一个独立“思考”卡片。
+    # DeepSeek V4.1 Flash 的上游恰好按 token 连续发送 reasoning_content，结果就会变成
+    # “一个词一个 Thinks”。对该模型仅在流式出口聚合 reasoning，正文仍保持流式输出。
+    collapse_reasoning = model_name == "deepseek-v4.1-flash"
+    reasoning_parts: list[str] = []
+    reasoning_template: dict | None = None
+    reasoning_flushed = False
+
+    def _collapsed_reasoning_event() -> bytes | None:
+        nonlocal reasoning_flushed
+        if reasoning_flushed or not reasoning_parts or reasoning_template is None:
+            return None
+        evt = json.loads(json.dumps(reasoning_template, ensure_ascii=False))
+        choices = evt.get("choices") or []
+        if not choices:
+            return None
+        delta = choices[0].setdefault("delta", {})
+        delta["content"] = ""
+        delta["reasoning_content"] = "".join(reasoning_parts)
+        delta["tool_calls"] = []
+        choices[0]["finish_reason"] = ""
+        evt["usage"] = None
+        reasoning_flushed = True
+        return ("data: " + json.dumps(evt, ensure_ascii=False, separators=(",", ":")) + "\n\n").encode("utf-8")
+
     def _feed(chunk: bytes):
         nonlocal finish_reason, saw_filter, buf
         # 行缓冲解析：把累计的 chunk 按 data: 行切出来统计
