@@ -158,12 +158,25 @@ class CredentialManager:
         try:
             with httpx.Client(timeout=15) as c:
                 r = c.post(url, headers=headers, json={})
-            data = r.json()
+            raw_text = r.text
+            try:
+                data = r.json()
+            except Exception:
+                raise RuntimeError(
+                    f"刷新 token 返回非 JSON：HTTP {r.status_code}: {raw_text[:500]}"
+                )
         except Exception as e:
             raise RuntimeError(f"刷新 token 网络失败：{e}")
-        if data.get("code") != 0 or not data.get("data"):
-            raise RuntimeError(f"刷新 token 失败：{data.get('msg', data)}")
-        new_auth = data["data"]
+        if r.status_code != 200:
+            raise RuntimeError(
+                f"刷新 token HTTP {r.status_code}: {raw_text[:500]}"
+            )
+        new_auth = data.get("data") if isinstance(data, dict) else None
+        if not new_auth:
+            # 兼容后端直接返回 auth 对象的情况。
+            new_auth = data if isinstance(data, dict) and data.get("accessToken") else None
+        if not new_auth:
+            raise RuntimeError(f"刷新 token 失败：{data}")
         # 继承部分字段
         new_auth["domain"] = new_auth.get("domain") or auth.get("domain")
         new_auth["lastRefreshTime"] = int(time.time() * 1000)
