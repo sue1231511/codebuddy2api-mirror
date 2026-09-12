@@ -635,11 +635,26 @@ async def cloud_auth_complete(
     session = {"auth": auth, "account": account}
     auth_dir = Path(os.environ.get("CODEBUDDY_AUTH_DIR", "/data/auth"))
     auth_dir.mkdir(parents=True, exist_ok=True)
-    path = auth_dir / "workbuddy-desktop-ai.info"
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(session, f, ensure_ascii=False, indent=2)
-    os.replace(tmp, path)
+
+    # Zeabur Config Editor 挂载的 workbuddy-desktop-ai.info 可能是独立挂载点，
+    # 对它执行 os.replace() 会触发 EXDEV/EBUSY 并直接 500。云端 OAuth 不覆盖挂载文件，
+    # 改写到同目录的独立运行时凭据文件；若目录不可写则退到 /tmp。
+    path = auth_dir / "cloud-workbuddy.info"
+    try:
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(session, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, path)
+    except OSError as e:
+        _log(f"cloud oauth auth write fallback | {type(e).__name__}: {e}")
+        fallback_dir = Path("/tmp/codebuddy-auth")
+        fallback_dir.mkdir(parents=True, exist_ok=True)
+        path = fallback_dir / "cloud-workbuddy.info"
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(session, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, path)
+
     CONFIG["cred"] = CredentialManager(path)
     _log(f"cloud oauth login succeeded | uid={account.get('uid')} | auth_file={path}")
     return {
