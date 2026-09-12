@@ -572,11 +572,22 @@ async def cloud_auth_complete(
     if not entry:
         return JSONResponse(status_code=410, content={"ok": False, "pending": False, "error": "oauth state missing or expired; call /auth/cloud/start again"})
     c = entry["client"]
-    r = await c.get(token_url, params={"state": state}, headers=_oauth_headers())
+    try:
+        r = await c.get(token_url, params={"state": state}, headers=_oauth_headers())
+    except Exception as e:
+        _log(f"cloud oauth token poll failed | state={state} | {type(e).__name__}: {e}")
+        return JSONResponse(
+            status_code=502,
+            content={"ok": False, "pending": False, "error": f"token poll failed: {type(e).__name__}: {e}"},
+        )
     try:
         body = r.json()
     except Exception:
-        raise HTTPException(status_code=502, detail={"error": {"message": r.text[:500], "type": "upstream_error"}})
+        _log(f"cloud oauth token poll non-json | state={state} | HTTP {r.status_code} | {r.text[:300]}")
+        return JSONResponse(
+            status_code=502,
+            content={"ok": False, "pending": False, "error": f"token poll non-json: HTTP {r.status_code}: {r.text[:300]}"},
+        )
     data = body.get("data") or {}
     access_token = data.get("accessToken") or data.get("access_token")
     if r.status_code != 200 or body.get("code") not in (0, 200) or not access_token:
