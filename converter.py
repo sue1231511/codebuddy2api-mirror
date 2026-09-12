@@ -452,11 +452,17 @@ _LOG_LOCK = threading.Lock()
 
 
 def _log(msg: str):
-    """写一行日志到 CONFIG['log_path'] 指定的文件（追加，带时间戳）。未设置则丢弃。"""
+    """记录诊断日志：始终写 stderr（便于 Zeabur 查看），可选再写文件。"""
+    line = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n"
+    try:
+        sys.stderr.write(line)
+        sys.stderr.flush()
+    except Exception:
+        pass
+
     path = CONFIG.get("log_path")
     if not path:
         return
-    line = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n"
     try:
         with _LOG_LOCK, open(path, "a", encoding="utf-8") as f:
             f.write(line)
