@@ -507,6 +507,116 @@ def _cred() -> CredentialManager:
     return CONFIG["cred"]
 
 
+def _oauth_headers() -> dict:
+    return {
+        "User-Agent": OAUTH_USER_AGENT,
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "X-No-Authorization": "true",
+        "X-No-User-Id": "true",
+        "X-No-Enterprise-Id": "true",
+        "X-No-Department-Info": "true",
+    }
+
+
+@app.post("/auth/cloud/start")
+async def cloud_auth_start(
+    authorization: str | None = Header(default=None),
+    x_api_key: str | None = Header(default=None, alias="X-Api-Key"),
+):
+    _check_auth(authorization, x_api_key)
+    url = f"{BACKEND}/v2/plugin/auth/state"
+    async with httpx.AsyncClient(timeout=30) as c:
+        r = await c.post(url, params={"platform": "workbuddy"}, headers=_oauth_headers(), json={})
+    try:
+        data = r.json()
+    except Exception:
+        raise HTTPException(status_code=502, detail={"error": {"message": r.text[:500], "type": "upstream_error"}})
+    if r.status_code != 200 or data.get("code") not in (0, 200):
+        raise HTTPException(status_code=r.status_code or 502, detail=data)
+    info = data.get("data") or {}
+    state = info.get("state")
+    auth_url = info.get("authUrl") or info.get("auth_url") or info.get("url")
+    if not state:
+        raise HTTPException(status_code=502, detail={"error": {"message": "auth/state missing state", "type": "upstream_error"}})
+    if not auth_url:
+        auth_url = f"{BACKEND}/login?state={state}"
+    return {"ok": True, "state": state, "auth_url": auth_url}
+
+
+@app.post("/auth/cloud/complete")
+async def cloud_auth_complete(
+    state: str,
+    authorization: str | None = Header(default=None),
+    x_api_key: str | None = Header(default=None, alias="X-Api-Key"),
+):
+    _check_auth(authorization, x_api_key)
+    token_url = f"{BACKEND}/v2/plugin/auth/token"
+    async with httpx.AsyncClient(timeout=30) as c:
+        r = await c.get(token_url, params={"state": state}, headers=_oauth_headers())
+        try:
+            body = r.json()
+        except Exception:
+            raise HTTPException(status_code=502, detail={"error": {"message": r.text[:500], "type": "upstream_error"}})
+        data = body.get("data") or {}
+        access_token = data.get("accessToken") or data.get("access_token")
+        if r.status_code != 200 or body.get("code") not in (0, 200) or not access_token:
+            return JSONResponse(status_code=202, content={"ok": False, "pending": True, "upstream": body})
+
+        domain = data.get("domain") or DEFAULT_DOMAIN
+        account_url = f"{BACKEND}/v2/plugin/login/account"
+        account_headers = {
+            "User-Agent": OAUTH_USER_AGENT,
+            "Authorization": f"Bearer {access_token}",
+            "X-No-User-Id": "true",
+            "X-No-Enterprise-Id": "true",
+            "X-No-Department-Info": "true",
+            "X-Domain": domain,
+            "Accept": "application/json",
+        }
+        ar = await c.get(account_url, params={"state": state}, headers=account_headers)
+        try:
+            account_body = ar.json()
+        except Exception:
+            account_body = {}
+
+    account = account_body.get("data") or {}
+    expires_at = data.get("expiresAt") or data.get("expires_at")
+    if not expires_at and data.get("expiresIn"):
+        expires_at = int(time.time() * 1000) + int(data["expiresIn"]) * 1000
+    refresh_expires_at = data.get("refreshExpiresAt") or data.get("refresh_expires_at")
+    if not refresh_expires_at and data.get("refreshExpiresIn"):
+        refresh_expires_at = int(time.time() * 1000) + int(data["refreshExpiresIn"]) * 1000
+
+    auth = dict(data)
+    auth["accessToken"] = access_token
+    if data.get("refresh_token") and not auth.get("refreshToken"):
+        auth["refreshToken"] = data["refresh_token"]
+    auth["domain"] = domain
+    if expires_at:
+        auth["expiresAt"] = expires_at
+    if refresh_expires_at:
+        auth["refreshExpiresAt"] = refresh_expires_at
+
+    session = {"auth": auth, "account": account}
+    auth_dir = Path(os.environ.get("CODEBUDDY_AUTH_DIR", "/data/auth"))
+    auth_dir.mkdir(parents=True, exist_ok=True)
+    path = auth_dir / "workbuddy-desktop-ai.info"
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(session, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, path)
+    CONFIG["cred"] = CredentialManager(path)
+    _log(f"cloud oauth login succeeded | uid={account.get('uid')} | auth_file={path}")
+    return {
+        "ok": True,
+        "auth_file": str(path),
+        "uid": account.get("uid"),
+        "nickname": account.get("nickname") or account.get("email"),
+        "token_expires_at": expires_at,
+    }
+
+
 @app.get("/health")
 def health():
     cred = CONFIG["cred"]
