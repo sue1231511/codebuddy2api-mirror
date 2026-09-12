@@ -540,7 +540,10 @@ async def cloud_auth_start(
     if not state:
         raise HTTPException(status_code=502, detail={"error": {"message": "auth/state missing state", "type": "upstream_error"}})
     if not auth_url:
-        auth_url = f"{BACKEND}/login?state={state}"
+        auth_url = f"{BACKEND}/login?platform=workbuddy&state={state}"
+    # 部分上游响应会把 '&' 作为字面量 '\\u0026' 返回；浏览器不会替我们解码，
+    # 会导致 platform 参数吞掉 state，最终登录页直接断开。
+    auth_url = str(auth_url).replace("\\u0026", "&")
     return {"ok": True, "state": state, "auth_url": auth_url}
 
 
