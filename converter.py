@@ -548,12 +548,14 @@ async def cloud_auth_start(
     state = info.get("state")
     auth_url = info.get("authUrl") or info.get("auth_url") or info.get("url")
     if not state:
+        await c.aclose()
         raise HTTPException(status_code=502, detail={"error": {"message": "auth/state missing state", "type": "upstream_error"}})
     if not auth_url:
         auth_url = f"{BACKEND}/login?platform=workbuddy&state={state}"
-    # 部分上游响应会把 '&' 作为字面量 '\\u0026' 返回；浏览器不会替我们解码，
-    # 会导致 platform 参数吞掉 state，最终登录页直接断开。
+    # 部分上游响应会把 '&' 作为字面量 '\\u0026' 返回；浏览器不会替我们解码。
     auth_url = str(auth_url).replace("\\u0026", "&")
+    with _OAUTH_LOGIN_LOCK:
+        _OAUTH_LOGIN_STATES[state] = {"client": c, "created_at": time.time()}
     return {"ok": True, "state": state, "auth_url": auth_url}
 
 
