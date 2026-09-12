@@ -532,8 +532,12 @@ async def cloud_auth_start(
 ):
     _check_auth(authorization, x_api_key)
     url = f"{BACKEND}/v2/plugin/auth/state"
-    async with httpx.AsyncClient(timeout=30) as c:
+    c = httpx.AsyncClient(timeout=30, follow_redirects=True)
+    try:
         r = await c.post(url, params={"platform": "workbuddy"}, headers=_oauth_headers(), json={})
+    except Exception:
+        await c.aclose()
+        raise
     try:
         data = r.json()
     except Exception:
