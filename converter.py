@@ -187,21 +187,23 @@ class CredentialManager:
 
     def _build_headers_from(self, auth: dict, account: dict, model: str = "auto") -> dict:
         domain = auth.get("domain") or DEFAULT_DOMAIN
-        request_id = str(uuid.uuid4())
+        request_id = uuid.uuid4().hex
+        enterprise_id = account.get("enterpriseId") or ""
         h = {
             "Content-Type": "application/json",
             "Accept": "text/event-stream",
             "Authorization": f"Bearer {auth.get('accessToken', '')}",
             "X-User-Id": account.get("uid", ""),
-            "X-Enterprise-Id": account.get("enterpriseId", ""),
-            "X-Tenant-Id": account.get("enterpriseId", ""),
+            "X-Enterprise-Id": enterprise_id,
+            "X-Tenant-Id": enterprise_id,
             "X-Domain": domain,
             "X-Product": "SaaS",
             "X-Request-ID": request_id,
-            "X-Trace-ID": request_id,
+            "X-Trace-ID": self._trace_id,
+            "X-Session-ID": self._session_id,
             "X-Model-ID": model or "auto",
         }
-        return h
+        return {k: v for k, v in h.items() if v not in (None, "")}
 
     def get_headers(self, model: str = "auto") -> dict:
         """返回带最新 token 的后端请求 header；必要时先刷新。"""
