@@ -607,18 +607,39 @@ async def chat_completions(
     # 非流式：后端只支持流式，这里把后端 SSE 聚合成单个 chat.completion 响应
     try:
         async with httpx.AsyncClient(timeout=300) as c:
-            async with c.stream("POST", url, headers=headers, json=body) as r:
-                if r.status_code != 200:
-                    raw = await r.aread()
-                    _log(
-                        f"[{rid}] ✗ HTTP {r.status_code} | {model_name} | {_truncate(raw.decode('utf-8', 'replace'), 200)}"
-                    )
-                    _log(f"[{rid}] ── ERROR BODY ──\n{raw.decode('utf-8', 'replace')}")
-                    raise HTTPException(
-                        status_code=r.status_code,
-                        detail=_safe_err_raw(raw, r.status_code),
-                    )
-                collected = await _collect_stream(r)
+            collected = None
+            for attempt in range(2):
+                async with c.stream("POST", url, headers=headers, json=body) as r:
+                    if r.status_code == 401 and attempt == 0:
+                        raw = await r.aread()
+                        _log(f"[{rid}] ↻ HTTP 401 | {model_name} | forcing token refresh and retry")
+                        try:
+                            cred.force_refresh()
+                            headers = cred.get_headers(model_name)
+                            continue
+                        except Exception as refresh_err:
+                            _log(f"[{rid}] ✗ token refresh failed | {refresh_err}")
+                            raise HTTPException(
+                                status_code=401,
+                                detail=_safe_err_raw(raw, 401),
+                            )
+                    if r.status_code != 200:
+                        raw = await r.aread()
+                        _log(
+                            f"[{rid}] ✗ HTTP {r.status_code} | {model_name} | {_truncate(raw.decode('utf-8', 'replace'), 200)}"
+                        )
+                        _log(f"[{rid}] ── ERROR BODY ──\n{raw.decode('utf-8', 'replace')}")
+                        raise HTTPException(
+                            status_code=r.status_code,
+                            detail=_safe_err_raw(raw, r.status_code),
+                        )
+                    collected = await _collect_stream(r)
+                    break
+            if collected is None:
+                raise HTTPException(
+                    status_code=502,
+                    detail={"error": {"message": "upstream retry failed", "type": "upstream_error"}},
+                )
     except HTTPException:
         raise
     except httpx.HTTPError as e:
