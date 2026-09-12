@@ -431,6 +431,8 @@ PASSTHROUGH_BODY_KEYS = {
     "user",
     "reasoning_effort",
     "enable_thinking",
+    "thinking",
+    "extra_body",
     "verbosity",
     "reasoning_summary",
 }
