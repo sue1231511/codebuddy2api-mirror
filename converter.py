@@ -65,11 +65,11 @@ from responses_projection import project_responses_chat_body
 # 常量
 # ---------------------------------------------------------------------------
 
-BACKEND = "https://copilot.tencent.com"
-DEFAULT_DOMAIN = "www.codebuddy.cn"
+BACKEND = "https://www.codebuddy.ai"
+DEFAULT_DOMAIN = "www.codebuddy.ai"
 USER_AGENT = "codebuddy2openai/2.0"
 OAUTH_USER_AGENT = "CLI/2.63.2 CodeBuddy/2.63.2"
-OAUTH_ORIGIN = "https://www.codebuddy.cn"
+OAUTH_ORIGIN = "https://www.codebuddy.ai"
 
 # ---------------------------------------------------------------------------
 # 平台相关：定位 auth 目录
