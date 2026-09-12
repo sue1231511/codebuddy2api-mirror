@@ -920,6 +920,9 @@ async def _collect_stream(response: httpx.Response) -> dict:
             delta = choice.get("delta") or {}
             if delta.get("content"):
                 content_parts.append(delta["content"])
+            reasoning_delta = delta.get("reasoning_content") or delta.get("reasoning")
+            if isinstance(reasoning_delta, str) and reasoning_delta:
+                reasoning_parts.append(reasoning_delta)
             for tc in delta.get("tool_calls") or []:
                 idx = tc.get("index", 0)
                 slot = tool_calls.setdefault(
