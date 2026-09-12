@@ -244,8 +244,28 @@ def _project_conversation_message(msg: dict, conservative: bool = False) -> dict
         return out
 
     if role == "user":
-        text = _content_to_text(msg.get("content", ""))
-        out["content"] = _truncate_text(text, MAX_USER_CHARS)
+        content = msg.get("content", "")
+        if isinstance(content, list):
+            projected_blocks = []
+            remaining = MAX_USER_CHARS
+            for block in content:
+                if not isinstance(block, dict):
+                    continue
+                bt = block.get("type")
+                if bt == "text":
+                    text = str(block.get("text", ""))
+                    if remaining <= 0:
+                        continue
+                    clipped = _truncate_text(text, remaining)
+                    remaining = max(remaining - len(clipped), 0)
+                    projected_blocks.append({"type": "text", "text": clipped})
+                elif bt == "image_url":
+                    # 图片不做文本化/摘要，原样保留给多模态模型。
+                    projected_blocks.append(dict(block))
+            out["content"] = projected_blocks
+        else:
+            text = _content_to_text(content)
+            out["content"] = _truncate_text(text, MAX_USER_CHARS)
         return out
 
     if role == "assistant":
