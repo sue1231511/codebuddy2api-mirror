@@ -27,6 +27,7 @@ import os
 import sys
 import threading
 import time
+import uuid
 from pathlib import Path
 
 import httpx
