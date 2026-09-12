@@ -567,20 +567,24 @@ async def cloud_auth_complete(
 ):
     _check_auth(authorization, x_api_key)
     token_url = f"{BACKEND}/v2/plugin/auth/token"
-    async with httpx.AsyncClient(timeout=30) as c:
-        r = await c.get(token_url, params={"state": state}, headers=_oauth_headers())
-        try:
-            body = r.json()
-        except Exception:
-            raise HTTPException(status_code=502, detail={"error": {"message": r.text[:500], "type": "upstream_error"}})
-        data = body.get("data") or {}
-        access_token = data.get("accessToken") or data.get("access_token")
-        if r.status_code != 200 or body.get("code") not in (0, 200) or not access_token:
-            return JSONResponse(status_code=202, content={"ok": False, "pending": True, "upstream": body})
+    with _OAUTH_LOGIN_LOCK:
+        entry = _OAUTH_LOGIN_STATES.get(state)
+    if not entry:
+        return JSONResponse(status_code=410, content={"ok": False, "pending": False, "error": "oauth state missing or expired; call /auth/cloud/start again"})
+    c = entry["client"]
+    r = await c.get(token_url, params={"state": state}, headers=_oauth_headers())
+    try:
+        body = r.json()
+    except Exception:
+        raise HTTPException(status_code=502, detail={"error": {"message": r.text[:500], "type": "upstream_error"}})
+    data = body.get("data") or {}
+    access_token = data.get("accessToken") or data.get("access_token")
+    if r.status_code != 200 or body.get("code") not in (0, 200) or not access_token:
+        return JSONResponse(status_code=202, content={"ok": False, "pending": True, "upstream": body})
 
-        domain = data.get("domain") or DEFAULT_DOMAIN
-        account_url = f"{BACKEND}/v2/plugin/login/account"
-        account_headers = {
+    domain = data.get("domain") or DEFAULT_DOMAIN
+    account_url = f"{BACKEND}/v2/plugin/login/account"
+    account_headers = {
             "User-Agent": OAUTH_USER_AGENT,
             "Authorization": f"Bearer {access_token}",
             "X-No-User-Id": "true",
