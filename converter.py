@@ -751,7 +751,7 @@ async def chat_completions(
                 0,
                 {
                     "role": "system",
-                    "content": "You are a helpful coding assistant.",
+                    "content": "Follow the user's instructions exactly. The actual task is provided in the subsequent user messages.",
                 },
             )
 
