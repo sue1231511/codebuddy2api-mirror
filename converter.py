@@ -182,27 +182,38 @@ class CredentialManager:
         self._cached = s
         self._mtime = self.path.stat().st_mtime
 
-    def _build_headers_from(self, auth: dict, account: dict) -> dict:
+    def _build_headers_from(self, auth: dict, account: dict, model: str = "auto") -> dict:
         domain = auth.get("domain") or DEFAULT_DOMAIN
+        request_id = str(uuid.uuid4())
         h = {
             "Content-Type": "application/json",
-            "Accept": "application/json",
+            "Accept": "text/event-stream",
             "Authorization": f"Bearer {auth.get('accessToken', '')}",
             "X-User-Id": account.get("uid", ""),
             "X-Enterprise-Id": account.get("enterpriseId", ""),
             "X-Tenant-Id": account.get("enterpriseId", ""),
             "X-Domain": domain,
-            "User-Agent": USER_AGENT,
+            "X-Product": "SaaS",
+            "X-Request-ID": request_id,
+            "X-Trace-ID": request_id,
+            "X-Model-ID": model or "auto",
         }
         return h
 
-    def get_headers(self) -> dict:
+    def get_headers(self, model: str = "auto") -> dict:
         """返回带最新 token 的后端请求 header；必要时先刷新。"""
         with self._lock:
             if self._is_expired():
                 self._refresh()
             s = self._session()
-            return self._build_headers_from(s.get("auth") or {}, s.get("account") or {})
+            return self._build_headers_from(
+                s.get("auth") or {}, s.get("account") or {}, model=model
+            )
+
+    def force_refresh(self):
+        """无视本地 expiresAt，强制刷新一次上游 token。"""
+        with self._lock:
+            self._refresh()
 
     def summary(self) -> dict:
         s = self._session()
