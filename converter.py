@@ -949,6 +949,8 @@ async def _collect_stream(response: httpx.Response) -> dict:
         finish_reason = finish_reason or "tool_calls"
 
     message = {"role": "assistant", "content": "".join(content_parts) or None}
+    if reasoning_parts:
+        message["reasoning_content"] = "".join(reasoning_parts)
     if tcs:
         message["tool_calls"] = tcs
     return {
