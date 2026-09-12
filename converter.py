@@ -893,6 +893,7 @@ async def _collect_stream(response: httpx.Response) -> dict:
     合并所有 chunk 的 delta（content / tool_calls），并取 usage / finish_reason。
     """
     content_parts: list[str] = []
+    reasoning_parts: list[str] = []
     # tool_calls: index -> {id, name, arguments(分片拼接)}
     tool_calls: dict[int, dict] = {}
     model: str | None = None
