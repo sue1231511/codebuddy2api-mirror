@@ -585,19 +585,23 @@ async def cloud_auth_complete(
     domain = data.get("domain") or DEFAULT_DOMAIN
     account_url = f"{BACKEND}/v2/plugin/login/account"
     account_headers = {
-            "User-Agent": OAUTH_USER_AGENT,
-            "Authorization": f"Bearer {access_token}",
-            "X-No-User-Id": "true",
-            "X-No-Enterprise-Id": "true",
-            "X-No-Department-Info": "true",
-            "X-Domain": domain,
-            "Accept": "application/json",
-        }
-        ar = await c.get(account_url, params={"state": state}, headers=account_headers)
-        try:
-            account_body = ar.json()
-        except Exception:
-            account_body = {}
+        "User-Agent": OAUTH_USER_AGENT,
+        "Authorization": f"Bearer {access_token}",
+        "X-No-User-Id": "true",
+        "X-No-Enterprise-Id": "true",
+        "X-No-Department-Info": "true",
+        "X-Domain": domain,
+        "Accept": "application/json",
+    }
+    ar = await c.get(account_url, params={"state": state}, headers=account_headers)
+    try:
+        account_body = ar.json()
+    except Exception:
+        account_body = {}
+
+    with _OAUTH_LOGIN_LOCK:
+        _OAUTH_LOGIN_STATES.pop(state, None)
+    await c.aclose()
 
     account = account_body.get("data") or {}
     expires_at = data.get("expiresAt") or data.get("expires_at")
